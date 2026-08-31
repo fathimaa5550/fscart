@@ -2,10 +2,7 @@
 Tests for the /health endpoints.
 Uses FastAPI's TestClient (sync) backed by an in-memory SQLite database.
 """
-import pytest
 from fastapi.testclient import TestClient
-
-from tests.conftest import client  # noqa: F401  (imported for fixture discovery)
 
 
 class TestHealthLiveness:

@@ -2,10 +2,7 @@
 Tests for the /cart endpoints.
 Uses FastAPI's TestClient backed by an in-memory SQLite database.
 """
-import pytest
 from fastapi.testclient import TestClient
-
-from tests.conftest import client  # noqa: F401
 
 USER_ID = "test-user-cart"
 PRODUCT_PAYLOAD = {"name": "Cart Widget", "price": "9.99", "stock": 20}
@@ -127,6 +124,6 @@ class TestClearCart:
 
     def test_clear_empty_cart(self, client: TestClient) -> None:
         # Clearing an already empty cart should succeed
-        response = client.delete(f"/cart/empty-cart-user-42")
+        response = client.delete("/cart/empty-cart-user-42")
         assert response.status_code == 200
         assert response.json()["items"] == []

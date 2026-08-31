@@ -2,10 +2,7 @@
 Tests for the /products CRUD endpoints.
 Uses FastAPI's TestClient backed by an in-memory SQLite database.
 """
-import pytest
 from fastapi.testclient import TestClient
-
-from tests.conftest import client  # noqa: F401
 
 
 PRODUCT_PAYLOAD = {
