@@ -3,11 +3,7 @@ kind: Kustomization
 
 namespace: fscart-prod
 
-bases:
-  - ../../base
 
-namePrefix: ""
-nameSuffix: ""
 
 commonLabels:
   env: prod
@@ -16,26 +12,28 @@ commonAnnotations:
   deployment-environment: prod
 
 images:
-  - name: REGISTRY/fscart
-    newName: REGISTRY/fscart
-    newTag: stable
+- name: REGISTRY/fscart
+  newName: fathimasalam/fscart
+  newTag: 63a9b7440a240900a49315e620e32f8388178e4e
 
 patches:
-  - path: patch-deployment.yaml
-    target:
-      kind: Deployment
-      name: fscart
+- path: patch-deployment.yaml
+  target:
+    kind: Deployment
+    name: fscart
 
 configMapGenerator:
-  - name: fscart-config
-    behavior: merge
-    literals:
-      - ENV=production
-      - LOG_LEVEL=warn
-      - DEBUG=false
-      - WORKERS=8
-      - CORS_ORIGINS=https://fscart.example.com
+- behavior: merge
+  literals:
+  - ENV=production
+  - LOG_LEVEL=warn
+  - DEBUG=false
+  - WORKERS=8
+  - CORS_ORIGINS=https://fscart.example.com
+  name: fscart-config
 
 replicas:
-  - name: fscart
-    count: 3
+- count: 3
+  name: fscart
+resources:
+- ../../base
