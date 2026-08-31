@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fscart-root
+  namespace: argocd
+  # Cascade delete will remove all child apps when root is deleted
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    app.kubernetes.io/name: fscart-root
+    app.kubernetes.io/part-of: fscart
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/description: "Root app-of-apps for FsCart — manages all environment applications"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/fathimaa5550/fscart
+    targetRevision: HEAD
+    # Points to the folder containing all child Application manifests
+    path: argocd/apps
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      # Remove apps that are no longer defined in Git
+      prune: true
+      # Revert manual changes made in the cluster
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - Validate=true
+      - CreateNamespace=false
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fscart
+  namespace: fscart-dev
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: fscart
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          env:
+            - name: ENV
+              value: development
+            - name: LOG_LEVEL
+              value: debug

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fscart-config
+  namespace: fscart
+  labels:
+    app: fscart
+data:
+  ENV: "production"
+  LOG_LEVEL: "info"
+  APP_PORT: "8000"
+  APP_HOST: "0.0.0.0"
+  ALLOWED_HOSTS: "*"
+  CORS_ORIGINS: "https://fscart.example.com"
+  DEBUG: "false"
+  WORKERS: "4"
+  TIMEOUT: "30"
+  MAX_CONNECTIONS: "100"

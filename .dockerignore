@@ -1,0 +1,72 @@
+# =============================================================================
+# .dockerignore
+# Files and directories excluded from the Docker build context.
+# Keeping the context small speeds up builds and prevents secrets from
+# accidentally landing inside the image.
+# =============================================================================
+
+# ── Python artefacts ─────────────────────────────────────────────────────────
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# ── Test artefacts ────────────────────────────────────────────────────────────
+tests/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# ── Environment & secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# ── Version control ───────────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# ── Editor & IDE artefacts ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ── Docker-specific files (no need to bake these into the image) ──────────────
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# ── Infrastructure / tooling (not needed at runtime) ─────────────────────────
+k8s/
+terraform/
+argocd/
+observability/
+.github/
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+*.md
+docs/
+LICENSE

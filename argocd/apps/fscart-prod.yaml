@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fscart-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    app.kubernetes.io/name: fscart-prod
+    app.kubernetes.io/part-of: fscart
+    app.kubernetes.io/managed-by: argocd
+    environment: prod
+  annotations:
+    argocd.argoproj.io/description: "FsCart production environment — MANUAL sync required, no automated changes"
+spec:
+  project: fscart
+
+  source:
+    repoURL: https://github.com/fathimaa5550/fscart
+    targetRevision: HEAD
+    path: k8s/overlays/prod
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: fscart-prod
+
+  # No automated sync for production — all changes require explicit manual approval
+  # Run: argocd app sync fscart-prod
+  syncPolicy:
+    syncOptions:
+      - Validate=true
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+
+  # Ignore HPA-managed fields to prevent false out-of-sync status
+  ignoreDifferences:
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/minReplicas
+        - /spec/maxReplicas
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jqPathExpressions:
+        - .spec.metrics[].resource.target.averageUtilization
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

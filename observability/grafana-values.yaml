@@ -1,0 +1,266 @@
+# =============================================================================
+# fscart – Grafana Helm Values (grafana/grafana v8.x)
+# =============================================================================
+
+# ----------------------------------------------------------------------------
+# Replicas & image
+# ----------------------------------------------------------------------------
+replicas: 1
+
+image:
+  repository: grafana/grafana
+  tag: "10.4.3"
+  pullPolicy: IfNotPresent
+
+# ----------------------------------------------------------------------------
+# Admin credentials (password injected via Terraform set_sensitive)
+# ----------------------------------------------------------------------------
+adminUser: admin
+# adminPassword is set via Terraform set_sensitive block
+
+# ----------------------------------------------------------------------------
+# Persistence
+# ----------------------------------------------------------------------------
+persistence:
+  enabled: true
+  type: pvc
+  storageClassName: ""       # use cluster default StorageClass
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  finalizers:
+    - kubernetes.io/pvc-protection
+
+# ----------------------------------------------------------------------------
+# Resources
+# ----------------------------------------------------------------------------
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# ----------------------------------------------------------------------------
+# Ingress
+# ----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  ingressClassName: istio      # use Istio ingress class; switch to "nginx" if preferred
+  annotations:
+    kubernetes.io/ingress.class: "istio"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  hosts:
+    - grafana.fscart.example.com
+  path: /
+  pathType: Prefix
+  tls: []
+  # tls:
+  #   - secretName: grafana-tls
+  #     hosts:
+  #       - grafana.fscart.example.com
+
+# ----------------------------------------------------------------------------
+# Datasources – auto-provisioned on startup
+# ----------------------------------------------------------------------------
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      # Prometheus – default datasource
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        access: proxy
+        isDefault: true
+        editable: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: "15s"
+
+      # Loki – log aggregation
+      - name: Loki
+        type: loki
+        uid: loki
+        url: http://loki.monitoring.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+        editable: true
+        jsonData:
+          maxLines: 1000
+          derivedFields:
+            - datasourceUid: tempo
+              matcherRegex: "traceID=(\\w+)"
+              name: TraceID
+              url: "$${__value.raw}"
+
+      # Tempo – distributed tracing
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        url: http://tempo.monitoring.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+        editable: true
+        jsonData:
+          httpMethod: GET
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-1h"
+            spanEndTimeShift: "1h"
+            filterByTraceID: true
+            filterBySpanID: false
+          tracesToMetrics:
+            datasourceUid: prometheus
+          serviceMap:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true
+          lokiSearch:
+            datasourceUid: loki
+
+# ----------------------------------------------------------------------------
+# Dashboard providers – auto-load JSON dashboards from ConfigMaps
+# ----------------------------------------------------------------------------
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: "default"
+        orgId: 1
+        folder: "fscart"
+        type: file
+        disableDeletion: false
+        editable: true
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+      - name: "istio"
+        orgId: 1
+        folder: "Istio"
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/istio
+
+      - name: "kubernetes"
+        orgId: 1
+        folder: "Kubernetes"
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/kubernetes
+
+# ----------------------------------------------------------------------------
+# Sidecar – discovers dashboards from ConfigMaps labelled grafana_dashboard=1
+# ----------------------------------------------------------------------------
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: ALL
+    folder: /var/lib/grafana/dashboards/default
+    folderAnnotation: grafana_folder
+    provider:
+      foldersFromFilesStructure: true
+    resource: configmap
+    reloadURL: "http://localhost:3000/api/admin/provisioning/dashboards/reload"
+  datasources:
+    enabled: true
+    label: grafana_datasource
+    labelValue: "1"
+    searchNamespace: ALL
+
+# ----------------------------------------------------------------------------
+# Pre-installed community dashboards (downloaded at init time)
+# ----------------------------------------------------------------------------
+dashboards:
+  default:
+    node-exporter:
+      gnetId: 1860
+      revision: 37
+      datasource: Prometheus
+    kubernetes-cluster:
+      gnetId: 7249
+      revision: 1
+      datasource: Prometheus
+  istio:
+    istio-mesh:
+      gnetId: 7639
+      revision: 119
+      datasource: Prometheus
+    istio-service:
+      gnetId: 7636
+      revision: 119
+      datasource: Prometheus
+    istio-workload:
+      gnetId: 7630
+      revision: 119
+      datasource: Prometheus
+
+# ----------------------------------------------------------------------------
+# Grafana configuration overrides
+# ----------------------------------------------------------------------------
+grafana.ini:
+  server:
+    root_url: "https://grafana.fscart.example.com"
+    serve_from_sub_path: false
+  security:
+    allow_embedding: true
+    cookie_secure: false   # set true when TLS is enabled
+  auth.anonymous:
+    enabled: false
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+  log:
+    mode: console
+    level: info
+  feature_toggles:
+    enable: traceqlEditor tempoApmTable
+
+# ----------------------------------------------------------------------------
+# Service
+# ----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+  annotations: {}
+
+# ----------------------------------------------------------------------------
+# Pod security & scheduling
+# ----------------------------------------------------------------------------
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 472
+  fsGroup: 472
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+  prometheus.io/path: "/metrics"
+
+# ----------------------------------------------------------------------------
+# Liveness / readiness probes
+# ----------------------------------------------------------------------------
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: 3000
+  initialDelaySeconds: 60
+  timeoutSeconds: 30
+  failureThreshold: 10
+
+readinessProbe:
+  httpGet:
+    path: /api/health
+    port: 3000
+  initialDelaySeconds: 30
+  timeoutSeconds: 10

@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: fscart
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: FsCart application project managing dev, staging, and prod environments
+
+  # Allow sourcing from any repository
+  sourceRepos:
+    - '*'
+
+  # Permitted destination clusters and namespaces
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: fscart-dev
+    - server: https://kubernetes.default.svc
+      namespace: fscart-staging
+    - server: https://kubernetes.default.svc
+      namespace: fscart-prod
+    # Allow argocd namespace for the app-of-apps root application
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+
+  # Allow all cluster-scoped resources (e.g. Namespaces, ClusterRoles)
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Allow all namespace-scoped resources
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Orphaned resource monitoring
+  orphanedResources:
+    warn: true

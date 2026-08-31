@@ -1,0 +1,130 @@
+# =============================================================================
+# docker-compose.yml  –  production-ready base configuration
+#
+# Services
+#   app       – FastAPI application (fscart)
+#   postgres  – Primary relational datastore
+#   redis     – Cache / session store (reserved for future use)
+#
+# Usage
+#   docker compose up          # start all services
+#   docker compose up --build  # rebuild app image first
+#   docker compose down -v     # stop and remove volumes
+# =============================================================================
+
+name: fscart
+
+# ---------------------------------------------------------------------------
+# Shared networking – all services communicate over this internal network.
+# The app never exposes postgres or redis ports externally in production.
+# ---------------------------------------------------------------------------
+networks:
+  fscart_net:
+    driver: bridge
+
+# ---------------------------------------------------------------------------
+# Named volumes – data persists across container restarts and recreations.
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+services:
+
+  # ── FastAPI application ──────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Cache-mount target so layer cache survives across BuildKit builds
+      target: runtime
+    image: fscart:latest
+    container_name: fscart_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Derived connection strings built from the individual credentials
+      # provided by the postgres and redis services below.
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+      REDIS_URL: "redis://redis:6379/0"
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8000"
+    # Mount the application source for live code reload in development.
+    # In production this volume is omitted via docker-compose.override.yml
+    # (or simply not mounted when the override is absent).
+    volumes:
+      - ./app:/app/app:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - fscart_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    # Graceful shutdown – give Uvicorn time to drain in-flight requests
+    stop_grace_period: 30s
+
+  # ── PostgreSQL 16 ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: fscart_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-fscart}"
+      POSTGRES_USER: "${POSTGRES_USER:-fscart}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
+      # Store data files in a sub-directory of the volume mount so the mount
+      # point itself is never used as the pg data directory directly.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fscart_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fscart} -d ${POSTGRES_DB:-fscart}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Do NOT expose postgres on the host in production.
+    # Uncomment only for local debugging:
+    # ports:
+    #   - "5432:5432"
+
+  # ── Redis 7 ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: fscart_redis
+    restart: unless-stopped
+    # Persist data to disk using append-only file for durability
+    command: >
+      redis-server
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 256mb
+        --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - fscart_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    # Do NOT expose redis on the host in production.
+    # Uncomment only for local debugging:
+    # ports:
+    #   - "6379:6379"

@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fscart-prod
+
+bases:
+  - ../../base
+
+namePrefix: ""
+nameSuffix: ""
+
+commonLabels:
+  env: prod
+
+commonAnnotations:
+  deployment-environment: prod
+
+images:
+  - name: REGISTRY/fscart
+    newName: REGISTRY/fscart
+    newTag: stable
+
+patches:
+  - path: patch-deployment.yaml
+    target:
+      kind: Deployment
+      name: fscart
+
+configMapGenerator:
+  - name: fscart-config
+    behavior: merge
+    literals:
+      - ENV=production
+      - LOG_LEVEL=warn
+      - DEBUG=false
+      - WORKERS=8
+      - CORS_ORIGINS=https://fscart.example.com
+
+replicas:
+  - name: fscart
+    count: 3

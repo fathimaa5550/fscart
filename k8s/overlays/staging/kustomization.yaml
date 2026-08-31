@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fscart-staging
+
+bases:
+  - ../../base
+
+namePrefix: ""
+nameSuffix: ""
+
+commonLabels:
+  env: staging
+
+commonAnnotations:
+  deployment-environment: staging
+
+images:
+  - name: REGISTRY/fscart
+    newName: REGISTRY/fscart
+    newTag: staging
+
+patches:
+  - path: patch-deployment.yaml
+    target:
+      kind: Deployment
+      name: fscart
+
+configMapGenerator:
+  - name: fscart-config
+    behavior: merge
+    literals:
+      - ENV=staging
+      - LOG_LEVEL=info
+      - DEBUG=false
+      - CORS_ORIGINS=https://staging.fscart.example.com
+
+replicas:
+  - name: fscart
+    count: 2

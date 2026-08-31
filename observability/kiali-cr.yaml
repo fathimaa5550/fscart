@@ -1,0 +1,147 @@
+# =============================================================================
+# fscart – Kiali Custom Resource (Kiali CR)
+# Manages Kiali server installation via the Kiali Operator
+# =============================================================================
+apiVersion: kiali.io/v1alpha1
+kind: Kiali
+metadata:
+  name: kiali
+  namespace: istio-system
+  labels:
+    app.kubernetes.io/name: kiali
+    app.kubernetes.io/part-of: fscart
+    app.kubernetes.io/managed-by: terraform
+spec:
+  # --------------------------------------------------------------------------
+  # Version (leave empty to let the operator choose latest compatible)
+  # --------------------------------------------------------------------------
+  version: default
+
+  # --------------------------------------------------------------------------
+  # Istio settings
+  # --------------------------------------------------------------------------
+  istio_namespace: "istio-system"
+
+  # --------------------------------------------------------------------------
+  # Authentication – anonymous for demo/dev; switch to "openid" or "token" for prod
+  # --------------------------------------------------------------------------
+  auth:
+    strategy: anonymous
+
+  # --------------------------------------------------------------------------
+  # Deployment settings
+  # --------------------------------------------------------------------------
+  deployment:
+    accessible_namespaces:
+      - "**"          # watch ALL namespaces
+    namespace: "istio-system"
+    replicas: 1
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+    pod_labels:
+      app: kiali
+      version: v1
+    pod_annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9090"
+    ingress:
+      enabled: false   # expose via kubectl port-forward or Istio VirtualService
+
+  # --------------------------------------------------------------------------
+  # External services
+  # --------------------------------------------------------------------------
+  external_services:
+
+    # Prometheus – metrics source for Kiali
+    # prometheus_url is injected by Terraform templatefile()
+    prometheus:
+      url: "${prometheus_url}"
+      cache_enabled: true
+      cache_duration: 10
+      cache_expiration: 300
+
+    # Grafana – linked from Kiali for dashboard deep-links
+    # grafana_url is injected by Terraform templatefile()
+    grafana:
+      enabled: true
+      in_cluster_url: "${grafana_url}"
+      # External URL shown to the browser (update with real ingress host)
+      url: "http://grafana.fscart.example.com"
+      dashboards:
+        - name: "Istio Service Dashboard"
+          variables:
+            namespace: var-namespace
+            service: var-service
+        - name: "Istio Workload Dashboard"
+          variables:
+            namespace: var-namespace
+            workload: var-workload
+        - name: "Istio Mesh Dashboard"
+
+    # Tracing – Tempo exposed via Jaeger-compatible HTTP API
+    # tempo_url is injected by Terraform templatefile()
+    tracing:
+      enabled: true
+      in_cluster_url: "${tempo_url}"
+      url: "${tempo_url}"
+      use_grpc: false
+      port: 16686
+      namespace_selector: true
+      whitelist_istio_system:
+        - "jaeger-query"
+        - "istio-ingressgateway"
+
+    # Istio component URLs (resolved by Kiali automatically when istio_namespace is set)
+    istio:
+      component_status:
+        enabled: true
+        components:
+          - app_label: "istiod"
+            is_core: true
+            is_proxy: false
+            namespace: "istio-system"
+          - app_label: "istio-ingressgateway"
+            is_core: true
+            is_proxy: true
+            namespace: "istio-ingress"
+
+  # --------------------------------------------------------------------------
+  # Server configuration
+  # --------------------------------------------------------------------------
+  server:
+    port: 20001
+    metrics_enabled: true
+    metrics_port: 9090
+    web_root: "/kiali"
+    cors_allow_all: false
+
+  # --------------------------------------------------------------------------
+  # Kubernetes service cache for performance
+  # --------------------------------------------------------------------------
+  kubernetes_config:
+    burst: 200
+    qps: 175
+    cache_enabled: true
+    cache_token_namespace_duration: 10s
+    excluded_workloads:
+      - "CronJob"
+      - "DeploymentConfig"
+
+  # --------------------------------------------------------------------------
+  # Health checks
+  # --------------------------------------------------------------------------
+  health_config:
+    rate:
+      - namespace: ".*"
+        kind: ".*"
+        name: ".*"
+        tolerance:
+          - code: "[5-9][0-9][0-9]"
+            protocol: "http"
+            direction: "inbound"
+            failure: 10

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fscart
+  namespace: fscart
+  labels:
+    app: fscart
+spec:
+  type: ClusterIP
+  selector:
+    app: fscart
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8000

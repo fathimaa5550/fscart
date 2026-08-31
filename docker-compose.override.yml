@@ -1,0 +1,57 @@
+# =============================================================================
+# docker-compose.override.yml  –  development overrides
+#
+# Docker Compose automatically merges this file with docker-compose.yml when
+# running `docker compose up` locally, so no extra flags are needed.
+#
+# These overrides are intentionally NOT committed to production deployments.
+# CI/CD pipelines should invoke `docker compose -f docker-compose.yml up`
+# (explicitly omitting this file) to run in production mode.
+# =============================================================================
+
+name: fscart
+
+services:
+
+  app:
+    # ── Development server ──────────────────────────────────────────────────
+    # Replace the production CMD with Uvicorn's --reload flag so the server
+    # restarts automatically whenever Python source files change on the host.
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/app
+      - --log-level
+      - debug
+
+    # ── Development environment variables ────────────────────────────────────
+    environment:
+      DEBUG: "true"
+      LOG_LEVEL: "debug"
+      ENV: "development"
+      # Disable HTTPS-only cookie flags locally
+      SECURE_COOKIES: "false"
+      # Broader CORS for local front-end development
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
+
+    # ── Source-code volume (read-write for --reload to pick up changes) ─────
+    # Overrides the read-only (:ro) mount declared in docker-compose.yml.
+    volumes:
+      - ./app:/app/app
+
+    # ── Expose postgres and redis locally for direct DB/cache access ─────────
+    # Handy for running migrations, psql, redis-cli, etc. from the host.
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"

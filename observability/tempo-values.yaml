@@ -1,0 +1,176 @@
+# =============================================================================
+# fscart – Tempo Helm Values (grafana/tempo v1.10.x)
+# =============================================================================
+
+# ----------------------------------------------------------------------------
+# Replicas
+# ----------------------------------------------------------------------------
+replicas: 1
+
+# ----------------------------------------------------------------------------
+# Resources
+# ----------------------------------------------------------------------------
+resources:
+  limits:
+    cpu: "1"
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+# ----------------------------------------------------------------------------
+# Persistence (local storage backend)
+# ----------------------------------------------------------------------------
+persistence:
+  enabled: true
+  storageClassName: ""    # cluster default StorageClass
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+# ----------------------------------------------------------------------------
+# Tempo core configuration
+# ----------------------------------------------------------------------------
+tempo:
+  # Retention – 24 hours (traces are short-lived; increase for production)
+  retention: 24h
+
+  # Report spans as received by Tempo
+  reportingEnabled: false
+
+  # Storage – local filesystem
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+
+  # Receivers – accept spans from multiple protocols
+  receivers:
+    # OTLP – gRPC (default port 4317)
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+    # Jaeger – all sub-protocols
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: "0.0.0.0:14268"
+        thrift_compact:
+          endpoint: "0.0.0.0:6831"
+        thrift_binary:
+          endpoint: "0.0.0.0:6832"
+        grpc:
+          endpoint: "0.0.0.0:14250"
+
+    # Zipkin – for Istio/Envoy sidecar span forwarding
+    zipkin:
+      endpoint: "0.0.0.0:9411"
+
+  # Query settings
+  querier:
+    frontend_worker:
+      frontend_address: ""
+
+  # Global limits
+  global_limits:
+    max_bytes_per_trace: 5242880      # 5 MiB
+    max_search_bytes_per_trace: 0
+    max_bytes_per_tag_values_query: 5242880
+
+  # Compactor (prunes traces exceeding retention)
+  compactor:
+    compaction:
+      block_retention: 24h
+      compacted_block_retention: 1h
+
+  # Metrics generator (span → Prometheus metrics)
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: "http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+
+  # Overrides
+  overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
+
+# ----------------------------------------------------------------------------
+# Service ports
+# ----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3100"
+
+# Expose all receiver ports
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+
+# ----------------------------------------------------------------------------
+# Extra ports exposed on the Pod (receivers)
+# ----------------------------------------------------------------------------
+extraPorts:
+  - name: otlp-grpc
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+  - name: otlp-http
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+  - name: jaeger-grpc
+    containerPort: 14250
+    servicePort: 14250
+    protocol: TCP
+  - name: jaeger-http
+    containerPort: 14268
+    servicePort: 14268
+    protocol: TCP
+  - name: jaeger-compact
+    containerPort: 6831
+    servicePort: 6831
+    protocol: UDP
+  - name: zipkin
+    containerPort: 9411
+    servicePort: 9411
+    protocol: TCP
+  - name: jaeger-query
+    containerPort: 16686
+    servicePort: 16686
+    protocol: TCP
+
+# ----------------------------------------------------------------------------
+# Pod annotations
+# ----------------------------------------------------------------------------
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3100"
+
+# ----------------------------------------------------------------------------
+# Security context
+# ----------------------------------------------------------------------------
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+# ----------------------------------------------------------------------------
+# Grafana dashboards ConfigMap label (auto-discovery via sidecar)
+# ----------------------------------------------------------------------------
+serviceMonitorNamespaceSelector: {}
+
+# -- Tracing self-spans disabled (avoid infinite loop)
+tempoQuery:
+  enabled: false
