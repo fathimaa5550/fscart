@@ -3,21 +3,12 @@ kind: Kustomization
 
 namespace: fscart-dev
 
-bases:
+resources:
   - ../../base
-
-namePrefix: ""
-nameSuffix: ""
-
-commonLabels:
-  env: dev
-
-commonAnnotations:
-  deployment-environment: dev
 
 images:
   - name: REGISTRY/fscart
-    newName: REGISTRY/fscart
+    newName: fathimasalam/fscart
     newTag: dev
 
 patches:
@@ -25,15 +16,6 @@ patches:
     target:
       kind: Deployment
       name: fscart
-
-configMapGenerator:
-  - name: fscart-config
-    behavior: merge
-    literals:
-      - ENV=development
-      - LOG_LEVEL=debug
-      - DEBUG=true
-      - CORS_ORIGINS=http://localhost:3000
 
 replicas:
   - name: fscart

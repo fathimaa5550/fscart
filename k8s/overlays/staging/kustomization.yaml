@@ -3,37 +3,19 @@ kind: Kustomization
 
 namespace: fscart-staging
 
-bases:
+resources:
   - ../../base
-
-namePrefix: ""
-nameSuffix: ""
-
-commonLabels:
-  env: staging
-
-commonAnnotations:
-  deployment-environment: staging
 
 images:
   - name: REGISTRY/fscart
-    newName: REGISTRY/fscart
-    newTag: staging
+    newName: fathimasalam/fscart
+    newTag: latest
 
 patches:
   - path: patch-deployment.yaml
     target:
       kind: Deployment
       name: fscart
-
-configMapGenerator:
-  - name: fscart-config
-    behavior: merge
-    literals:
-      - ENV=staging
-      - LOG_LEVEL=info
-      - DEBUG=false
-      - CORS_ORIGINS=https://staging.fscart.example.com
 
 replicas:
   - name: fscart

@@ -3,38 +3,19 @@ kind: Kustomization
 
 namespace: fscart-prod
 
-bases:
+resources:
   - ../../base
-
-namePrefix: ""
-nameSuffix: ""
-
-commonLabels:
-  env: prod
-
-commonAnnotations:
-  deployment-environment: prod
 
 images:
   - name: REGISTRY/fscart
-    newName: REGISTRY/fscart
-    newTag: stable
+    newName: fathimasalam/fscart
+    newTag: latest
 
 patches:
   - path: patch-deployment.yaml
     target:
       kind: Deployment
       name: fscart
-
-configMapGenerator:
-  - name: fscart-config
-    behavior: merge
-    literals:
-      - ENV=production
-      - LOG_LEVEL=warn
-      - DEBUG=false
-      - WORKERS=8
-      - CORS_ORIGINS=https://fscart.example.com
 
 replicas:
   - name: fscart
