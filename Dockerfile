@@ -40,7 +40,9 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     # Tell Python where to find the packages copied from the builder stage
-    PYTHONPATH=/install/lib/python3.12/site-packages
+    PYTHONPATH=/install/lib/python3.12/site-packages \
+    # Ensure scripts installed by pip (uvicorn, alembic, etc.) are on PATH
+    PATH=/install/bin:$PATH
 
 # Install only the runtime OS libraries required by psycopg2 (libpq) and
 # the health-check curl call.
